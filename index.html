@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sri Lanka COVID Cases Last 2 weeks</title>
+    <style>
+        *{
+            font-family: "Arial Narrow",Arial,serif;
+        }
+        body{
+            margin: 0px;
+        }
+        #container{
+            margin-top: 10px;
+        }
+        table{
+            width: 80%;
+            margin-left: 10%;
+            margin-right: 10%;
+        }
+        #title{
+           text-align: center;
+            font-size: 60px;
+            margin-bottom: 10px;
+            margin-top: 10px;
+        }
+        #dateField{
+            text-align: center;
+            font-size: 30px;
+            margin-bottom: 5px;
+            margin-top: 5px;
+        }
+        #chartContainer{
+            padding : 0px;
+            vertical-align: top;
+            text-align: center;
+        }
+        #chart{
+            margin-top: 20px;
+            border: 5px solid #eeeeee;
+            border-radius: 6px;
+            box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+            width: 880px;
+            height: 400px;
+        }
+        #sourceText{
+            text-align: right;
+            margin-right: 170px;
+            font-style: italic;
+            color: #777777
+        }
+    </style>
+    <script>
+
+        window.addEventListener("load",init);
+
+        function generateDate(priorDate=0) {
+            let date = new Date(priorDate);
+            if (!isNaN(priorDate)){
+                let priorDateMilliSeconds = 8.64e+7*window.parseInt(priorDate);   // Converting Days to Miliseconds
+                date = new Date(Date.now()-priorDateMilliSeconds);
+            }
+            let year = date.getFullYear();
+            let month = (date.getMonth()+1);
+            if (month<10){
+                month = "0"+month;
+            }
+            let day = date.getDate();
+            if (day<10){
+                day = "0"+day;
+            }
+            return year+"-"+month+"-"+day;
+        }
+
+        function init() {
+
+            //Printing Date Fields in duration section
+            let twoWeeksBefore = generateDate(14);
+            let today = generateDate();
+            dateField.innerHTML = "From "+twoWeeksBefore+" to "+today;
+
+            //Creating URL to send request
+            let twoWeeksBB = generateDate(15)
+            let url = "https://api.covid19api.com/country/sri-lanka/status/confirmed?from="+twoWeeksBB+"&to="+today;
+            //let url = "http://localhost/sandbox/covid-cases-web-page-consuming-covid19api.com-api/data.json";  // For Testing Purposes
+
+            //Sending a http request via ajax call
+            let ajaxObject = new XMLHttpRequest();
+
+            ajaxObject.onreadystatechange = function() {
+                if (this.readyState === 4 && this.status === 200) {
+                    imgloading.style.display = "none";
+                    container.style.display = "block"
+
+                    let response = JSON.parse(this.responseText);
+
+                    function ConfirmedCases() {}
+
+                    confirmedCases=[];
+                    for (let i = 1; i<response.length; i++){
+                        if (response[i].Country!=""){
+                            let cc = new ConfirmedCases();
+                            cc.date = generateDate(response[i].Date);
+                            cc.cases = (window.parseInt(response[i].Cases) - window.parseInt(response[i-1].Cases));
+                            confirmedCases.push(cc);
+                        }
+                    }
+                    drawchart();
+                }
+            };
+            ajaxObject.open("get",url,true);
+            ajaxObject.send();
+        }
+        
+        function drawChartLayout(context) {
+            // X and Y Axis Labels
+            context.font = '17pt Calibri';
+            context.fillText('# Confirmed Cases', 10, 35);
+            context.fillText('Date', 980, 457);
+
+            // Y Axis Pointer 
+            context.beginPath();
+            context.moveTo(70, 70);
+            context.lineTo(80, 45);
+            context.lineTo(90, 70);
+            context.lineJoin = "miter";  //Other Possible values -> miter , round, bevel
+            context.lineWidth = 5;
+            context.stroke();
+
+            // X Axis Pointer
+            context.beginPath();
+            context.moveTo(940, 440);
+            context.lineTo(968, 450);
+            context.lineTo(940, 460);
+            context.lineJoin = "miter";
+            context.lineWidth = 5;
+            context.stroke();
+
+            // X and Y Axis Lines
+            context.beginPath();
+            context.moveTo(80, 50);
+            context.lineTo(80, 450);
+            context.lineTo(960, 450);
+            context.lineJoin = "round";
+            context.lineWidth = 5;
+            context.stroke();
+        }
+
+        function findMaxNumberOfCases(){
+            let cases = [];
+
+            for (let i =0; i<confirmedCases.length ; i++){
+                cases.push(window.parseInt(confirmedCases[i].cases));
+            }
+            return  Math.max(...cases);
+        }
+
+        function findNumberOfCasesPerPixel() {
+            let maxCase = findMaxNumberOfCases();
+            return  numberOfCasesPerPixel = (300/maxCase);  //300 is maximum height of a single bar can get
+        }
+
+        function calculateBarHeights(){
+            let numberOfCasesPerPixel = findNumberOfCasesPerPixel();  //300 is maximum height of a single bar can get
+
+            let heights = [];
+            for (let i=0; i<confirmedCases.length ; i++){
+                let h = window.parseInt(confirmedCases[i].cases)*numberOfCasesPerPixel;
+                heights.push(Math.round(h));
+            }
+            return heights;
+        }
+
+        function calculateAverage(){
+            let count=0;
+            for (let i =0; i<confirmedCases.length ; i++){
+                count += window.parseInt(confirmedCases[i].cases);
+            }
+            return Math.round(count/confirmedCases.length);
+        }
+
+        function displayAverage(context){
+            let avgCases = calculateAverage();
+            let cps = findNumberOfCasesPerPixel();
+
+            let position = beginY-(avgCases*cps);
+
+            context.beginPath();
+            context.moveTo(88, position);
+            context.lineTo(950, position);
+            context.strokeStyle = '#000000';
+            context.lineWidth = 1;
+            context.stroke();
+
+            context.font = '18pt bold Calibri';
+            context.fillStyle = 'black';
+            context.fillText("Average : "+avgCases, 960,position+5 );
+
+        }
+
+        function findColors(){
+            let avg = calculateAverage();
+            let color=[];
+            for (let i = 0; i<confirmedCases.length;i++){
+                //Red if Higer than Avg
+                if (confirmedCases[i].cases >= avg){
+                    color.push("red");
+                }else {
+                    color.push("green");
+                }
+            }
+            return color;
+        }
+
+        // Chart Begins at
+        // X = 83
+        // Y = 447
+        // Space between others -> 10
+        beginX = 83;
+        beginY = 447; //Static
+        space = 10;
+        barWidth = 50;
+        function drawBar(context,barHeight,displayDate,cases,barColor) {
+
+            beginX += space;
+
+            context.beginPath();
+            context.rect(beginX , beginY, barWidth, (0-barHeight));//(BL,barwidth, height )
+            context.fillStyle = barColor;
+            context.lineWidth = 1;
+            context.fill();
+            context.strokeStyle = '#ccc';
+            context.stroke();
+
+            context.font = '15pt Calibri';
+            context.fillStyle = 'black';
+            context.fillText(displayDate, beginX+2, beginY+25);
+
+            context.font = '15pt Calibri';
+            context.fillStyle = 'black';
+            context.fillText(cases, beginX+14,beginY-barHeight-7 );
+
+
+            beginX+=barWidth;
+        }
+
+        function drawchart() {
+            let chartCanvas = document.getElementById("chart");
+            let context = chartCanvas.getContext("2d");
+            
+            drawChartLayout(context);
+
+            let heights = calculateBarHeights();
+            let color = findColors();
+
+           for (let i=0;i<confirmedCases.length;i++){
+               let d = confirmedCases[i].date.split("-");
+               let mmdd = d[1]+"/"+d[2];
+               let c = confirmedCases[i].cases;
+
+                drawBar(context,heights[i],mmdd,c,color[i]);
+            }
+            displayAverage(context);
+        }
+    </script>
+</head>
+<body>
+<img style="width: 300px;height: 300px; position: absolute;top: 30%;left: 40%;"   id="imgloading" src="./resources/loading.gif" alt="Loading Image">
+<div  id="container" style="display: none" >
+    <table cellpadding="0" cellspacing="0"  >
+        <tr>
+            <td colspan="3">
+                <h1 id="title">Sri Lanka COVID-19 Confirmed Cases</h1>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="3">
+                <h3 id="dateField"></h3>
+            </td>
+        </tr>
+        <tr style="height: 500px">
+            <td colspan="3" id="chartContainer">
+                <canvas width="1100" height="500" id="chart"></canvas>
+                <p id="sourceText">Source : https://www.covid19api.com</p>
+
+            </td>
+        </tr>
+    </table>
+</div>
+</body>
+</html>
